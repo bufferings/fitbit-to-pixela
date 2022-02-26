@@ -49,14 +49,38 @@ const updateLocalDotEnvFile = async (newRefreshToken: string) => {
   fs.writeFileSync(envFilePath, newEnvVars.join(os.EOL));
 };
 
-const updateCircleCIProjectEnv = async (newRefreshToken: string) => {
+const updateCircleCIProjectEnvVar = async (newRefreshToken: string) => {
+  const myCircleApiToken = process.env.MY_CIRCLE_API_TOKEN;
+  if (!myCircleApiToken) {
+    throw new Error('MY_CIRCLE_API_TOKEN environment variable does not exist.');
+  }
+  const myCircleProjectSlug = process.env.MY_CIRCLE_PROJECT_SLUG;
+  if (!myCircleProjectSlug) {
+    throw new Error('MY_CIRCLE_PROJECT_SLUG environment variable does not exist.');
+  }
+  const body = {
+    name: 'FITBIT_REFRESH_TOKEN',
+    value: newRefreshToken,
+  };
+  const response = await nodeFetch(`https://circleci.com/api/v2/project/${myCircleProjectSlug}/envvar`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: {
+      'content-type': 'application/json',
+      'circle-token': myCircleApiToken,
+    },
+  });
+  if (!response.ok) {
+    const message = await response.json();
+    throw new Error(`Failed to update CircleCI project env var: status=${response.status}, response=${JSON.stringify(message)}`);
+  }
 };
 
 const saveNewRefreshToken = async (newRefreshToken: string) => {
   if (isLocal()) {
     await updateLocalDotEnvFile(newRefreshToken);
   } else {
-    await updateCircleCIProjectEnv(newRefreshToken);
+    await updateCircleCIProjectEnvVar(newRefreshToken);
   }
 };
 
@@ -66,7 +90,7 @@ interface Steps {
 }
 
 const fetchStepsFromFitbit = async (accessToken: string): Promise<Steps[]> => {
-  const response = await nodeFetch('https://api.fitbit.com/1/user/-/activities/steps/date/today/3m.json', {
+  const response = await nodeFetch('https://api.fitbit.com/1/user/-/activities/steps/date/today/7d.json', {
     method: 'GET',
     headers: {
       'accept': 'application/json',
@@ -86,8 +110,13 @@ const putToPixela = async ({ dateTime, value: quantity }: Steps) => {
     throw new Error('PIXELA_TOKEN environment variable does not exist.');
   }
 
+  const pixelaGraphUrl = process.env.PIXELA_GRAPH_URL;
+  if (!pixelaGraphUrl) {
+    throw new Error('PIXELA_GRAPH_URL environment variable does not exist.');
+  }
+
   const dateTimePath = dateTime.replace(/-/g, '');
-  const response = await nodeFetch(`https://pixe.la/v1/users/bufferings/graphs/steps/${dateTimePath}`, {
+  const response = await nodeFetch(`${pixelaGraphUrl}/${dateTimePath}`, {
     method: 'PUT',
     body: JSON.stringify({ quantity }),
     headers: {
@@ -111,6 +140,4 @@ const main = async () => {
   }
 };
 
-// main();
-
-console.log('Hello');
+main();
