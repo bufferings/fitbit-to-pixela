@@ -25,7 +25,8 @@ const fetchNewTokensFromFitbit = async () => {
     },
   });
   if (!response.ok) {
-    throw new Error(`Failed to fetch new tokens from Fitbit. status: ${response.status}.`);
+    const text = await response.text();
+    throw new Error(`Failed to fetch new tokens from Fitbit. status: ${response.status}, response=${text}`);
   }
   const json = await response.json();
   return [json.access_token, json.refresh_token];
@@ -71,8 +72,8 @@ const updateCircleCIProjectEnvVar = async (newRefreshToken: string) => {
     },
   });
   if (!response.ok) {
-    const message = await response.json();
-    throw new Error(`Failed to update CircleCI project env var: status=${response.status}, response=${JSON.stringify(message)}`);
+    const text = await response.text();
+    throw new Error(`Failed to update CircleCI project env var: status=${response.status}, response=${text}`);
   }
 };
 
@@ -98,7 +99,8 @@ const fetchStepsFromFitbit = async (accessToken: string): Promise<Steps[]> => {
     },
   });
   if (!response.ok) {
-    throw new Error(`Failed to fetch steps from Fitbit: ${response.status}.`);
+    const text = await response.text();
+    throw new Error(`Failed to fetch steps from Fitbit: ${response.status}, response=${text}`);
   }
   const json = await response.json();
   return json['activities-steps'];
@@ -125,19 +127,29 @@ const putToPixela = async ({ dateTime, value: quantity }: Steps) => {
     },
   });
   if (!response.ok) {
-    const message = await response.json();
-    throw new Error(`Failed to put steps to Pixela: status=${response.status}, response=${JSON.stringify(message)}`);
+    const text = await response.text();
+    throw new Error(`Failed to put steps to Pixela: status=${response.status}, response=${text}`);
   }
 };
 
 const main = async () => {
+  console.log('Started');
+
   const [accessToken, newRefreshToken] = await fetchNewTokensFromFitbit();
+  console.log('Refreshed Fitbit tokens');
+
   await saveNewRefreshToken(newRefreshToken);
+  console.log('Stored the new refresh token');
 
   const stepsList = await fetchStepsFromFitbit(accessToken);
-  for (let steps of stepsList) {
+  console.log('Got steps from Fitbit');
+
+  for (const steps of stepsList) {
     await putToPixela(steps);
   }
+  console.log('Put steps to Pixela');
+
+  console.log('Finished');
 };
 
 main();
